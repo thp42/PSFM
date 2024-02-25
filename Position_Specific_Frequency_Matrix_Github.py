@@ -96,7 +96,7 @@ def main(family_file_paths):
     average_matrix = np.mean(stacked_matrices, axis=0)
 
     # Plot the aggregated matrix
-    title = 'Average Frequency Across Families the 7 Proteins - USP 54'
+    title = 'Average Frequency Across Families the 7 Proteins - '
     highlight_seq = ""  # Input the highlighting sequence
     plot_heatmap(average_matrix, standard_amino_acids, title=title, highlight_sequence=highlight_seq)
 
