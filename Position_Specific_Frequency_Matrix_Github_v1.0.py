@@ -1,108 +1,228 @@
+import os
+import csv
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap, Normalize
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 from collections import Counter
-import csv
+from typing import List, Tuple
 
-standard_amino_acids = ['R', 'H', 'K', 'S', 'T', 'N', 'Q', 'D', 'E', 'C', 'G', 'P', 'A', 'V', 'I', 'L', 'M', 'F', 'W', 'Y', ]   
+# Define a list of standard amino acids
+STANDARD_AMINO_ACIDS = [
+    'R', 'H', 'K', 'D', 'E', 'N', 'Q', 'S', 'T', 'C',
+    'G', 'P', 'A', 'V', 'I', 'L', 'M', 'F', 'W', 'Y'
+]
 
-#Parse Sequence from a fasta file or MSA as .aln
-def parse_fasta(filepath):
+def parse_fasta(filepath: str) -> List[str]:
+    """
+    Parse a FASTA file and return a list of sequences.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
     sequences = []
     with open(filepath, 'r') as file:
-        sequence = ''
+        sequence = []
         for line in file:
+            line = line.strip()
             if line.startswith('>'):
+                # Header line indicates a new sequence
                 if sequence:
-                    sequences.append(sequence)
-                    sequence = ''
+                    sequences.append(''.join(sequence))
+                    sequence = []
             else:
-                sequence += line.strip()
+                sequence.append(line)
+        # Append the last sequence if present
         if sequence:
-            sequences.append(sequence)
+            sequences.append(''.join(sequence))
     return sequences
 
-# Calculate the frequency of each amino acid at each position
-def calculate_aa_frequencies(sequences):
-    matrix = np.zeros((len(standard_amino_acids), len(sequences[0])))
+def calculate_aa_frequencies(sequences: List[str], 
+                             amino_acids: List[str] = STANDARD_AMINO_ACIDS) -> Tuple[np.ndarray, List[str]]:
+    """
+    Calculate the frequency of each amino acid at each position across all sequences.
+    """
+    if not sequences:
+        raise ValueError("No sequences provided for frequency calculation.")
     
-    for i in range(len(sequences[0])):
+    seq_length = len(sequences[0])
+    if any(len(seq) != seq_length for seq in sequences):
+        raise ValueError("Not all sequences are the same length.")
+    
+    matrix = np.zeros((len(amino_acids), seq_length))
+    num_sequences = len(sequences)
+    
+    for i in range(seq_length):
         column = [seq[i] for seq in sequences]
         counts = Counter(column)
-        for j, aa in enumerate(standard_amino_acids):
-            matrix[j, i] = counts.get(aa, 0) / len(sequences)
-    
-    return matrix, standard_amino_acids
+        for j, aa in enumerate(amino_acids):
+            matrix[j, i] = counts.get(aa, 0) / num_sequences
+            
+    return matrix, amino_acids
 
-# Function to plot the heatmap
-def plot_heatmap(matrix, all_amino_acids, title='Amino Acid Frequency Heatmap', highlight_sequence=None):
-    masked_matrix = np.ma.masked_where(matrix == 0, matrix)
-    cmap = plt.cm.Reds  
-    cmaplist = [cmap(i) for i in range(cmap.N)]
-    custom_cmap = ListedColormap(cmaplist)
-    norm = Normalize(-0.25, vmax=np.max(matrix))
-    fig, ax = plt.subplots()
-    cax = ax.imshow(masked_matrix, cmap=custom_cmap, norm=norm, interpolation='nearest', aspect='auto')
-    fig.colorbar(cax, ax=ax, extend='min')
+def filter_matrix(matrix: np.ndarray, threshold: float = 0.00) -> np.ndarray:
+    """
+    Filter the frequency matrix, setting values below threshold to 0.
+    """
+    return np.where(matrix > threshold, matrix, 0)
 
+def plot_heatmap(matrix: np.ndarray, 
+                 amino_acids: List[str], 
+                 title: str = 'Amino Acid Frequency Heatmap', 
+                 highlight_sequence: str = None) -> None:
+    """
+    Plot a heatmap of amino acid frequencies with a publication-quality style.
+    """
+    # Create a colorblind-friendly colormap
+    cmap = LinearSegmentedColormap.from_list('white_red', ['#ffffff', '#DB6B6A'])
+
+    # Normalize frequencies between 0 and 1
+    norm = Normalize(vmin=0, vmax=1)
+
+    # Set up figure and axis with minimal style
+    fig, ax = plt.subplots(figsize=(11, 8))
+
+    # Increase DPI and ensure consistent font
+    plt.rcParams['figure.dpi'] = 300
+    plt.rcParams['font.family'] = 'arial'  # Consistent serif font
+    plt.rcParams['font.size'] = 18
+
+    # Plot the heatmap
+    cax = ax.imshow(matrix, 
+                    cmap=cmap, 
+                    norm=norm, 
+                    interpolation='nearest', 
+                    aspect='auto')
+
+    # Add horizontal colorbar below the graph
+    cbar = fig.colorbar(cax, ax=ax, orientation='horizontal', fraction=0.05, pad=0.1)
+    cbar.set_label("√Frequency", fontsize=18, family='arial', weight='bold')
+    cbar.outline.set_linewidth(2)
+
+
+
+    # Highlight specific amino acids in highlight_sequence if provided
     if highlight_sequence:
         for i, aa in enumerate(highlight_sequence):
-            if aa in all_amino_acids:
-                aa_index = all_amino_acids.index(aa)
-                # Draw rectangles for highlighting, adjusted for 0.5 offset in imshow
-                rect = plt.Rectangle((i-0.5, aa_index-0.5), 1, 1, fill=False, edgecolor='green', lw=2)
+            if aa in amino_acids:
+                aa_index = amino_acids.index(aa)
+                rect = plt.Rectangle((i - 0.5, aa_index - 0.5), 
+                                     1, 1, fill=False, edgecolor='green', lw=3.0)  # Increased thickness
                 ax.add_patch(rect)
-    
-    ax.set_xticks(np.arange(matrix.shape[1]))
-    ax.set_yticks(np.arange(matrix.shape[0]))
-    ax.set_xticklabels(np.arange(1, matrix.shape[1] + 1), rotation=90)
-    ax.set_yticklabels(all_amino_acids)
-    plt.xlabel('Position')
-    plt.ylabel('Amino Acid')
-    plt.title(title)
+
+    # Set ticks and labels
+    num_positions = matrix.shape[1]
+    x_labels = np.arange(-6, -6 + num_positions)
+    ax.set_xticks(np.arange(num_positions))
+    ax.set_xticklabels(x_labels, rotation=0, fontsize=22, family='arial')
+
+    y_labels = amino_acids
+    ax.set_yticks(np.arange(len(amino_acids)))
+    ax.set_yticklabels(y_labels, fontsize=22, family='arial')
+
+    # Adjust tick size for both x and y axes
+    ax.tick_params(axis='x', labelsize=22, length=6, width=2)  # Adjust label size and tick appearance
+    ax.tick_params(axis='y', labelsize=22, length=6, width=2)
+
+
+    # Make the border of the graph thicker
+    for spine in ax.spines.values():
+        spine.set_linewidth(2)  # Set thickness to 2.5
+
+
+    # Example positions to mark
+    positions_to_mark = [1, 4, 8, 9]
+    for pos in positions_to_mark:
+        rect = plt.Rectangle((pos + 6 - 0.5, -0.5),
+                             1, len(amino_acids),
+                             fill=False, edgecolor='black', lw=1.5)  # Increased thickness
+        ax.add_patch(rect)
+
+    # Add axis labels and title with slightly larger fonts
+    ax.set_xlabel('Position', fontsize=24, family='arial', fontweight='bold')
+    ax.set_ylabel('Amino Acid', fontsize=24, family='arial', fontweight='bold')
+    ax.set_title(title, fontsize=16, pad=20, family='arial')
+
+    # Tight layout for better spacing
+    plt.tight_layout()
+
+    # Save as EPS file
+    plt.savefig(r"G:\YOURPATH\output_heatmap.eps", format='eps', bbox_inches='tight')
+
     plt.show()
 
-# Function to export matrix to CSV
-def export_to_csv(matrix, all_amino_acids, full_path):
+
+
+def power_transform(matrix: np.ndarray, power: float = 0.5) -> np.ndarray:
+    """
+    Apply a power-law transformation to flatten steepness.
+    
+    :param matrix: 2D numpy array of frequencies.
+    :param power: Power factor to flatten steepness (default: square root, 0.5).
+    :return: Power-transformed matrix.
+    """
+    return matrix ** power
+
+
+
+
+
+def export_to_csv(matrix: np.ndarray, amino_acids: List[str], full_path: str) -> None:
+    """
+    Export the frequency matrix to a CSV file.
+    """
     with open(full_path, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(['Amino Acid'] + [f'Position {i+1}' for i in range(matrix.shape[1])])
-        for aa, row in zip(all_amino_acids, matrix):
+        header = ['Amino Acid'] + [f'Position {i+1}' for i in range(matrix.shape[1])]
+        writer.writerow(header)
+        
+        for aa, row in zip(amino_acids, matrix):
             writer.writerow([aa] + list(row))
+    
     print(f"Frequency data exported to CSV file: {full_path}")
 
-def filter_matrix(matrix, threshold=0.002):
-    filtered_matrix = np.where(matrix > threshold, matrix, 0)
-    return filtered_matrix
 
-
-def main(family_file_paths):
+def main(family_file_paths: List[str]) -> None:
+    """
+    Main function to parse multiple alignment files, calculate average frequencies, 
+    apply log transformation, plot them, and save the results to CSV.
+    """
     frequency_matrices = []
-
     for file_path in family_file_paths:
         sequences = parse_fasta(file_path)
-        if sequences: 
-            frequency_matrix, _ = calculate_aa_frequencies(sequences)
-            filtered_matrix = filter_matrix(frequency_matrix)
-            frequency_matrices.append(filtered_matrix)
+        if not sequences:
+            print(f"No sequences found in file: {file_path}")
+            continue
+        
+        frequency_matrix, _ = calculate_aa_frequencies(sequences)
+        filtered_matrix = filter_matrix(frequency_matrix)
+        frequency_matrices.append(filtered_matrix)
 
-    # Check if there are matrices to process
     if not frequency_matrices:
         print("No valid matrices to process.")
         return
 
-    # Calculate the average frequency across all matrices
+    # Calculate average frequency across all matrices
     stacked_matrices = np.stack(frequency_matrices, axis=0)
     average_matrix = np.mean(stacked_matrices, axis=0)
 
-    # Plot the aggregated matrix
-    title = 'Average Frequency Across Families the 7 Proteins - '
-    highlight_seq = ""  # Input the highlighting sequence
-    plot_heatmap(average_matrix, standard_amino_acids, title=title, highlight_sequence=highlight_seq)
+    # Apply smoothed natural log transformation
+#    log_transformed_matrix = power_transform(average_matrix, power=0.5)
+    log_transformed_matrix = average_matrix
+    # Highlight sequence for plotting
+    highlight_seq = ''
+    title = 'Log-Transformed Average Frequency Across Families - Protein Shroom3_Helix2'
+
+    # Plot and save the figure
+    plot_heatmap(log_transformed_matrix, STANDARD_AMINO_ACIDS, title=title, highlight_sequence=highlight_seq)
+
+    # Export the log-transformed matrix to CSV
+    output_csv_path = r"G:\YOURPATH\log_transformed_averaged_frequency_matrix.csv"
+    export_to_csv(log_transformed_matrix, STANDARD_AMINO_ACIDS, output_csv_path)
 
 
 if __name__ == "__main__":
     family_file_paths = [
-        #List of File Paths .aln
+        r'G:\YOURPATH\Protein1.fasta',
+        r'G:\YOURPATH\Protein2.fasta',
     ]
     main(family_file_paths)
