@@ -13,7 +13,7 @@ This Python script calculates the frequency of each amino acid at each position 
 ### Software Requirements
 
 #### **OS Requirements**
-This package is supported for Linux. The package has been tested on the following systems:
+This package should work for most operating systems, as it is a standalone python script. The package has been tested on the following systems:
 
   - Linux: Ubuntu 20.04
 
