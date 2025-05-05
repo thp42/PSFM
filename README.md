@@ -8,6 +8,8 @@ This Python script calculates the frequency of each amino acid at each position 
 
 <details>
 
+---
+
 ### Software Requirements
 
 #### **OS Requirements**
@@ -68,3 +70,5 @@ To use the script, prepare a list of file paths to your `.aln` files containing 
 The heatmap will be displayed for the average frequency across all provided sequences. Note that each sequence family is weighted equally in the average calculation, ensuring that each family contributes identically to the final visualization, regardless of the number of sequences in each family.
 
 </details>
+
+---
