@@ -76,7 +76,7 @@ The heatmap will be displayed for the average frequency across all provided sequ
 
 ## Citation
 
-If you use this pipeline in published research, please cite:
+If you use this program3 in published research, please cite:
 - Manuscript
   - **Discovery of a new evolutionarily conserved short linear F-actin binding motif**: Themistoklis Paraschiakos, Biao Yuan, Kostiantyn Sopelniak, Michael Bucher, Lisa Simon, Ksenija Zonjic, Dominic Eggers, Franziska Selle, Jing Li, Stefan Linder, Thomas C. Marlovits, Sabine Windhorst. bioRxiv 2025.04.16.649135; [doi: https://doi.org/10.1101/2025.04.16.649135](https://www.biorxiv.org/content/10.1101/2025.04.16.649135v1)
 
